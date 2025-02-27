@@ -26,7 +26,7 @@ use crossbeam_channel::{Receiver, Sender};
 use dpi::PhysicalSize;
 use embedder_traits::{
     AnimationState, CompositorHitTestResult, Cursor, InputEvent, MouseButtonEvent, MouseMoveEvent,
-    ShutdownState, TouchEventType, UntrustedNodeAddress, ViewportDetails,
+    ScrollEvent as EmbedderScrollEvent, ShutdownState, TouchEventType, UntrustedNodeAddress, ViewportDetails,
 };
 use euclid::{Point2D, Rect, Scale, Size2D, Transform3D};
 use fnv::FnvHashMap;
@@ -1268,6 +1268,18 @@ impl IOCompositor {
 
         self.send_root_pipeline_display_list();
         self.set_needs_repaint(RepaintReason::Resize);
+    }
+
+    fn dispatch_scroll_event(
+        &self,
+        external_id: ExternalScrollId,
+        hit_test_result: CompositorHitTestResult,
+    ) {
+        let event = InputEvent::Scroll(EmbedderScrollEvent { external_id });
+        let msg = ConstellationMsg::ForwardInputEvent(event, Some(hit_test_result));
+        if let Err(e) = self.global.constellation_sender.send(msg) {
+            warn!("Sending scroll event to constellation failed ({:?}).", e);
+        }
     }
 
     /// If there are any animations running, dispatches appropriate messages to the constellation.
