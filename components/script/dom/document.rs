@@ -34,6 +34,7 @@ use embedder_traits::{
     AllowOrDeny, AnimationState, CompositorHitTestResult, ContextMenuResult, EditingActionEvent,
     EmbedderMsg, ImeEvent, InputEvent, LoadStatus, MouseButton, MouseButtonAction,
     MouseButtonEvent, ScrollEvent, TouchEvent, TouchEventType, TouchId, WheelEvent,
+    UntrustedNodeAddress,
 };
 use encoding_rs::{Encoding, UTF_8};
 use euclid::default::{Point2D, Rect, Size2D};
@@ -57,8 +58,7 @@ use profile_traits::time::TimerMetadataFrameType;
 use regex::bytes::Regex;
 use script_bindings::interfaces::DocumentHelpers;
 use script_layout_interface::{node_id_from_scroll_id, PendingRestyle, TrustedNodeAddress};
-use script_traits::{ConstellationInputEvent, DocumentActivity, ProgressiveWebMetricType,
-    UntrustedNodeAddress};
+use script_traits::{ConstellationInputEvent, DocumentActivity, ProgressiveWebMetricType};
 use servo_arc::Arc;
 use servo_config::pref;
 use servo_media::{ClientContextId, ServoMedia};

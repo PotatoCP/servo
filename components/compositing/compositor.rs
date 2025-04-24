@@ -1272,12 +1272,13 @@ impl IOCompositor {
 
     fn dispatch_scroll_event(
         &self,
+        webview_id: WebViewId,
         external_id: ExternalScrollId,
         hit_test_result: CompositorHitTestResult,
     ) {
         let event = InputEvent::Scroll(EmbedderScrollEvent { external_id });
-        let msg = ConstellationMsg::ForwardInputEvent(event, Some(hit_test_result));
-        if let Err(e) = self.global.constellation_sender.send(msg) {
+        let msg = EmbedderToConstellationMessage::ForwardInputEvent(webview_id, event, Some(hit_test_result));
+        if let Err(e) = self.global.borrow().constellation_sender.send(msg) {
             warn!("Sending scroll event to constellation failed ({:?}).", e);
         }
     }
