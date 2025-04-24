@@ -349,12 +349,12 @@ def wait_for_service(logger: StructuredLogger,
     available, `timeout` duration is reached, or the `server_process` exits at
     which point ``socket.error`` is raised."""
     addr = (host, port)
-    logger.debug(f"Trying to connect to {host}:{port}")
+    logger.info(f"Trying to connect to {host}:{port}")
     end = time.time() + timeout
     while end > time.time():
         if server_process is not None and server_process.poll() is not None:
             returncode = server_process.poll()
-            logger.debug(
+            logger.info(
                 f"Server process {server_process.pid} exited with "
                 f"{returncode}, giving up trying to connect"
             )
@@ -369,7 +369,7 @@ def wait_for_service(logger: StructuredLogger,
             if e.errno != errno.ECONNREFUSED:
                 raise
         else:
-            logger.debug(f"Connected to {host}:{port}")
+            logger.info(f"Connected to {host}:{port}")
             return True
         finally:
             so.close()
