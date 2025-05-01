@@ -79,6 +79,7 @@ fn compute_tick_duration(tick_actions: &ActionSequence) -> u64 {
             }
         },
         ActionsType::Key { actions: _ } => (),
+<<<<<<< HEAD
         ActionsType::Wheel { actions } => {
             for action in actions.iter() {
                 let action_duration = match action {
@@ -88,6 +89,9 @@ fn compute_tick_duration(tick_actions: &ActionSequence) -> u64 {
                 duration = cmp::max(duration, action_duration.unwrap_or(0));
             }
         },
+=======
+        ActionsType::Wheel { .. } => log::error!("not implemented"),
+>>>>>>> 46f59e329c6 (Establish baseline webdriver conformance results (#35024))
     }
     duration
 }
