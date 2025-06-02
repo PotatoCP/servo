@@ -33,7 +33,8 @@ use http::method::Method;
 use image::{DynamicImage, ImageFormat, RgbaImage};
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use ipc_channel::router::ROUTER;
-use keyboard_types::webdriver::send_keys;
+use keyboard_types::{CompositionEvent, Key, KeyState};
+use keyboard_types::webdriver::{Event, KeyInputState, send_keys};
 use log::{debug, info};
 use pixels::PixelFormat;
 use serde::de::{Deserializer, MapAccess, Visitor};
@@ -45,8 +46,9 @@ use servo_url::ServoUrl;
 use style_traits::CSSPixel;
 use uuid::Uuid;
 use webdriver::actions::{
-    ActionSequence, ActionsType, PointerAction, PointerActionItem, PointerActionParameters,
-    PointerDownAction, PointerMoveAction, PointerOrigin, PointerType, PointerUpAction,
+    ActionSequence, ActionsType, KeyAction, KeyActionItem, KeyDownAction, KeyUpAction,
+    PointerAction, PointerActionItem, PointerActionParameters, PointerDownAction,
+    PointerMoveAction, PointerOrigin, PointerType, PointerUpAction,
 };
 use webdriver::capabilities::CapabilitiesMatching;
 use webdriver::command::{
@@ -1610,8 +1612,9 @@ impl Handler {
         }
     }
 
+    /// <https://w3c.github.io/webdriver/#element-send-keys>
     fn handle_element_send_keys(
-        &self,
+        &mut self,
         element: &WebElement,
         keys: &SendKeysParameters,
     ) -> WebDriverResult<WebDriverResponse> {
@@ -1628,15 +1631,54 @@ impl Handler {
         // TODO: distinguish the not found and not focusable cases
         wait_for_script_response(receiver)?.map_err(|error| WebDriverError::new(error, ""))?;
 
-        let input_events = send_keys(&keys.text);
+        let id = Uuid::new_v4().to_string();
+        self.session_mut()?.input_state_table.borrow_mut().insert(
+            id.clone(),
+            InputSourceState::Key(KeyInputState::new()),
+        );
 
-        // TODO: there's a race condition caused by the focus command and the
-        // send keys command being two separate messages,
-        // so the constellation may have changed state between them.
-        let cmd_msg = WebDriverCommandMsg::SendKeys(browsing_context_id, input_events);
-        self.constellation_chan
-            .send(EmbedderToConstellationMessage::WebDriverCommand(cmd_msg))
-            .unwrap();
+        // Get the resulting event based on spec.
+        // https://w3c.github.io/webdriver/#dfn-dispatch-actions-for-a-string
+        let input_events = send_keys(&keys.text);
+        for event in input_events {
+            match event {
+                Event::Keyboard(keyboard_event) => {
+                    let raw_string = key_to_string(&keyboard_event.key);
+                    let key_action_item = match keyboard_event.state {
+                        KeyState::Down => {
+                            KeyActionItem::Key(KeyAction::Down(
+                                KeyDownAction {
+                                    value: raw_string,
+                                }
+                            ))
+                        },
+                        KeyState::Up => {
+                            KeyActionItem::Key(KeyAction::Up(
+                                KeyUpAction {
+                                    value: raw_string,
+                                }
+                            ))
+                        },
+                    };
+                    let action_sequence = ActionSequence {
+                        id: id.clone(),
+                        actions: ActionsType::Key {
+                            actions: vec![key_action_item],
+                        },
+                    };
+                    let actions_by_tick = self.actions_by_tick_from_sequence(vec![action_sequence]);
+                    self.dispatch_actions(actions_by_tick).map_err(|err| WebDriverError::new(err, ""))?;
+                },
+                Event::Composition(composition_event) => {
+                    let cmd_msg = WebDriverCommandMsg::DispatchComposition(browsing_context_id, composition_event);
+                    self.constellation_chan
+                        .send(EmbedderToConstellationMessage::WebDriverCommand(cmd_msg))
+                        .unwrap();            
+                },
+            }
+        }
+
+        
 
         Ok(WebDriverResponse::Void)
     }
@@ -2035,4 +2077,47 @@ where
     receiver
         .recv()
         .map_err(|_| WebDriverError::new(ErrorStatus::NoSuchWindow, ""))
+}
+
+fn key_to_string(k: &Key) -> String {
+    match k {
+        Key::Character(s) => s.to_string(),
+        Key::Unidentified => '\u{E000}'.to_string(),
+        Key::Cancel => '\u{E001}'.to_string(),
+        Key::Help => '\u{E002}'.to_string(),
+        Key::Backspace => '\u{E003}'.to_string(),
+        Key::Tab => '\u{E004}'.to_string(),
+        Key::Clear => '\u{E005}'.to_string(),
+        Key::Enter => '\u{E006}'.to_string(),
+        Key::Shift => '\u{E008}'.to_string(),
+        Key::Control => '\u{E009}'.to_string(),
+        Key::Alt => '\u{E00A}'.to_string(),
+        Key::Pause => '\u{E00B}'.to_string(),
+        Key::Escape => '\u{E00C}'.to_string(),
+        Key::PageUp => '\u{E00E}'.to_string(),
+        Key::PageDown => '\u{E00F}'.to_string(),
+        Key::End => '\u{E010}'.to_string(),
+        Key::Home => '\u{E011}'.to_string(),
+        Key::ArrowLeft => '\u{E012}'.to_string(),
+        Key::ArrowUp => '\u{E013}'.to_string(),
+        Key::ArrowRight => '\u{E014}'.to_string(),
+        Key::ArrowDown => '\u{E015}'.to_string(),
+        Key::Insert => '\u{E016}'.to_string(),
+        Key::Delete => '\u{E017}'.to_string(),
+        Key::F1 => '\u{E031}'.to_string(),
+        Key::F2 => '\u{E032}'.to_string(),
+        Key::F3 => '\u{E033}'.to_string(),
+        Key::F4 => '\u{E034}'.to_string(),
+        Key::F5 => '\u{E035}'.to_string(),
+        Key::F6 => '\u{E036}'.to_string(),
+        Key::F7 => '\u{E037}'.to_string(),
+        Key::F8 => '\u{E038}'.to_string(),
+        Key::F9 => '\u{E039}'.to_string(),
+        Key::F10 => '\u{E03A}'.to_string(),
+        Key::F11 => '\u{E03B}'.to_string(),
+        Key::F12 => '\u{E03C}'.to_string(),
+        Key::Meta => '\u{E03D}'.to_string(),
+        Key::ZenkakuHankaku => '\u{E040}'.to_string(),
+        _ => '\u{E000}'.to_string(),
+    }
 }

@@ -12,8 +12,7 @@ use euclid::default::Rect as UntypedRect;
 use euclid::{Rect, Size2D};
 use hyper_serde::Serde;
 use ipc_channel::ipc::IpcSender;
-use keyboard_types::KeyboardEvent;
-use keyboard_types::webdriver::Event as WebDriverInputEvent;
+use keyboard_types::{KeyboardEvent, CompositionEvent};
 use pixels::RasterImage;
 use serde::{Deserialize, Serialize};
 use servo_url::ServoUrl;
@@ -39,8 +38,9 @@ pub enum WebDriverCommandMsg {
     /// Pass a webdriver command to the script thread of the current pipeline
     /// of a browsing context.
     ScriptCommand(BrowsingContextId, WebDriverScriptCommand),
-    /// Act as if keys were pressed in the browsing context with the given ID.
-    SendKeys(BrowsingContextId, Vec<WebDriverInputEvent>),
+    /// Dispatch a composition event when encountering non-typeable cluster
+    /// in send keys.
+    DispatchComposition(BrowsingContextId, CompositionEvent),
     /// Act as if keys were pressed or release in the browsing context with the given ID.
     KeyboardAction(BrowsingContextId, KeyboardEvent),
     /// Act as if the mouse was clicked in the browsing context with the given ID.

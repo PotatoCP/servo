@@ -4781,36 +4781,28 @@ where
                     self.handle_send_error(pipeline_id, e);
                 }
             },
-            WebDriverCommandMsg::SendKeys(browsing_context_id, cmd) => {
+            WebDriverCommandMsg::DispatchComposition(browsing_context_id, event) => {
                 let pipeline_id = match self.browsing_contexts.get(&browsing_context_id) {
                     Some(browsing_context) => browsing_context.pipeline_id,
                     None => {
-                        return warn!("{}: SendKeys after closure", browsing_context_id);
+                        return warn!("{}: DispatchComposition after closure", browsing_context_id);
                     },
                 };
                 let event_loop = match self.pipelines.get(&pipeline_id) {
                     Some(pipeline) => pipeline.event_loop.clone(),
-                    None => return warn!("{}: SendKeys after closure", pipeline_id),
+                    None => return warn!("{}: DispatchComposition after closure", pipeline_id),
                 };
-                for event in cmd {
-                    let event = match event {
-                        WebDriverInputEvent::Keyboard(event) => ConstellationInputEvent {
-                            pressed_mouse_buttons: self.pressed_mouse_buttons,
-                            active_keyboard_modifiers: event.modifiers,
-                            hit_test_result: None,
-                            event: InputEvent::Keyboard(event),
-                        },
-                        WebDriverInputEvent::Composition(event) => ConstellationInputEvent {
-                            pressed_mouse_buttons: self.pressed_mouse_buttons,
-                            active_keyboard_modifiers: self.active_keyboard_modifiers,
-                            hit_test_result: None,
-                            event: InputEvent::Ime(ImeEvent::Composition(event)),
-                        },
-                    };
-                    let control_msg = ScriptThreadMessage::SendInputEvent(pipeline_id, event);
-                    if let Err(e) = event_loop.send(control_msg) {
-                        return self.handle_send_error(pipeline_id, e);
-                    }
+                let control_msg = ScriptThreadMessage::SendInputEvent(
+                    pipeline_id,
+                    ConstellationInputEvent {
+                        pressed_mouse_buttons: self.pressed_mouse_buttons,
+                        active_keyboard_modifiers: self.active_keyboard_modifiers,
+                        hit_test_result: None,
+                        event: InputEvent::Ime(ImeEvent::Composition(event)),
+                    },
+                );
+                if let Err(e) = event_loop.send(control_msg) {
+                    self.handle_send_error(pipeline_id, e)
                 }
             },
             WebDriverCommandMsg::KeyboardAction(browsing_context_id, event) => {
