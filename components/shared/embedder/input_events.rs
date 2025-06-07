@@ -16,7 +16,7 @@ pub enum InputEvent {
     EditingAction(EditingActionEvent),
     Gamepad(GamepadEvent),
     Ime(ImeEvent),
-    Keyboard(KeyboardEvent),
+    Keyboard(ServoKeyEvent),
     MouseButton(MouseButtonEvent),
     MouseMove(MouseMoveEvent),
     Touch(TouchEvent),
@@ -50,7 +50,7 @@ impl InputEvent {
             InputEvent::EditingAction(..) => None,
             InputEvent::Gamepad(..) => None,
             InputEvent::Ime(..) => None,
-            InputEvent::Keyboard(..) => None,
+            InputEvent::Keyboard(event) => event.webdriver_id,
             InputEvent::MouseButton(event) => event.webdriver_id,
             InputEvent::MouseMove(event) => event.webdriver_id,
             InputEvent::Touch(..) => None,
@@ -63,7 +63,9 @@ impl InputEvent {
             InputEvent::EditingAction(..) => {},
             InputEvent::Gamepad(..) => {},
             InputEvent::Ime(..) => {},
-            InputEvent::Keyboard(..) => {},
+            InputEvent::Keyboard(ref mut event) => {
+                event.webdriver_id = webdriver_id;
+            },
             InputEvent::MouseButton(ref mut event) => {
                 event.webdriver_id = webdriver_id;
             },
@@ -77,6 +79,21 @@ impl InputEvent {
         };
 
         self
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ServoKeyEvent {
+    pub event: KeyboardEvent,
+    webdriver_id: Option<WebDriverMessageId>,
+}
+
+impl ServoKeyEvent {
+    pub fn new(keyboard_event: KeyboardEvent) -> Self {
+        Self {
+            event: keyboard_event,
+            webdriver_id: None,
+        }
     }
 }
 
