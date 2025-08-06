@@ -38,18 +38,23 @@ use crate::dom::attr::is_boolean_attribute;
 use crate::dom::bindings::codegen::Bindings::CSSStyleDeclarationBinding::CSSStyleDeclarationMethods;
 use crate::dom::bindings::codegen::Bindings::DOMRectBinding::DOMRectMethods;
 use crate::dom::bindings::codegen::Bindings::DocumentBinding::DocumentMethods;
-use crate::dom::bindings::codegen::Bindings::ElementBinding::ElementMethods;
+use crate::dom::bindings::codegen::Bindings::ElementBinding::{
+    ElementMethods, ScrollIntoViewContainer, ScrollLogicalPosition, ScrollIntoViewOptions,
+};
 use crate::dom::bindings::codegen::Bindings::HTMLElementBinding::HTMLElementMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLInputElementBinding::HTMLInputElementMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLOptionElementBinding::HTMLOptionElementMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLSelectElementBinding::HTMLSelectElementMethods;
 use crate::dom::bindings::codegen::Bindings::HTMLTextAreaElementBinding::HTMLTextAreaElementMethods;
 use crate::dom::bindings::codegen::Bindings::NodeBinding::{GetRootNodeOptions, NodeMethods};
-use crate::dom::bindings::codegen::Bindings::WindowBinding::WindowMethods;
+use crate::dom::bindings::codegen::Bindings::WindowBinding::{
+    ScrollOptions, ScrollBehavior, WindowMethods,
+};
 use crate::dom::bindings::codegen::Bindings::XMLSerializerBinding::XMLSerializerMethods;
 use crate::dom::bindings::codegen::Bindings::XPathResultBinding::{
     XPathResultConstants, XPathResultMethods,
 };
+use crate::dom::bindings::codegen::UnionTypes::BooleanOrScrollIntoViewOptions;
 use crate::dom::bindings::conversions::{
     ConversionBehavior, ConversionResult, FromJSValConvertible, StringificationBehavior,
     get_property, get_property_jsval, jsid_to_string, jsstring_to_str, root_from_object,
@@ -1826,11 +1831,6 @@ pub(crate) fn handle_element_click(
                     return Err(ErrorStatus::UnknownError);
                 };
 
-                // Step 5
-                // TODO: scroll into view is not implemented in Servo
-
-                // Step 6. If element's container is still not in view
-                // return error with error code element not interactable.
                 let paint_tree = get_element_pointer_interactable_paint_tree(
                     &container,
                     &documents
@@ -1838,6 +1838,12 @@ pub(crate) fn handle_element_click(
                         .expect("Document existence guaranteed by `get_known_element`"),
                     can_gc,
                 );
+
+                // Step 5
+                scroll_into_view(&container, &paint_tree);
+
+                // Step 6. If element's container is still not in view
+                // return error with error code element not interactable.
 
                 if !is_element_in_view(&container, &paint_tree) {
                     return Err(ErrorStatus::ElementNotInteractable);
@@ -1997,4 +2003,20 @@ pub(crate) fn handle_remove_load_status_sender(
         let window = document.window();
         window.set_webdriver_load_status_sender(None);
     }
+}
+
+/// <https://w3c.github.io/webdriver/#dfn-scrolls-into-view>
+fn scroll_into_view(element: &Element, paint_tree: &[DomRoot<Element>]) {
+    if is_element_in_view(element, paint_tree) {
+        return;
+    }
+    let options = BooleanOrScrollIntoViewOptions::ScrollIntoViewOptions(
+        ScrollIntoViewOptions {
+            parent: ScrollOptions { behavior: ScrollBehavior::Auto },
+            block: ScrollLogicalPosition::End,
+            inline: ScrollLogicalPosition::Nearest,
+            container: ScrollIntoViewContainer::All,
+        }
+    );
+    element.ScrollIntoView(options);
 }
