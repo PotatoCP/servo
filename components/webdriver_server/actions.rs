@@ -11,6 +11,7 @@ use crossbeam_channel::Select;
 use embedder_traits::{
     InputEvent, KeyboardEvent, MouseButtonAction, MouseButtonEvent, MouseMoveEvent,
     WebDriverCommandMsg, WebDriverScriptCommand, WheelDelta, WheelEvent, WheelMode,
+    TouchEvent, TouchEventType, TouchId,
 };
 use ipc_channel::ipc;
 use keyboard_types::webdriver::KeyInputState;
@@ -363,19 +364,29 @@ impl Handler {
             return;
         }
 
-        let PointerInputState { x, y, .. } = *pointer_input_state;
+        let PointerInputState { pointer_id, subtype, x, y, .. } = *pointer_input_state;
         // Step 6. Add button to the set corresponding to source's pressed property
         pointer_input_state.pressed.insert(action.button);
         // Step 7 - 15: Variable namings already done.
 
         // Step 16. Perform implementation-specific action dispatch steps
-        // TODO: We have not considered pen/touch pointer type
-        self.send_blocking_input_event_to_embedder(InputEvent::MouseButton(MouseButtonEvent::new(
-            MouseButtonAction::Down,
-            action.button.into(),
-            DevicePoint::new(x as f32, y as f32),
-        )));
-
+        let input_event = match subtype {
+            PointerType::Mouse => {
+                InputEvent::MouseButton(MouseButtonEvent::new(
+                    MouseButtonAction::Down,
+                    action.button.into(),
+                    DevicePoint::new(x as f32, y as f32),
+                ))
+            },
+            PointerType::Pen | PointerType::Touch => {
+                InputEvent::Touch(TouchEvent::new(
+                    TouchEventType::Down,
+                    TouchId(pointer_id as i32),
+                    DevicePoint::new(x as f32, y as f32),
+                ))
+            },
+        };
+        self.send_blocking_input_event_to_embedder(input_event);
         // Step 17. Return success with data null.
     }
 
@@ -389,9 +400,9 @@ impl Handler {
 
         // Step 6. Remove button from the set corresponding to source's pressed property,
         pointer_input_state.pressed.remove(&action.button);
-        let PointerInputState { x, y, .. } = *pointer_input_state;
+        let PointerInputState { subtype, pointer_id, x, y, .. } = *pointer_input_state;
 
-        // Remove matching pointerUp(must be unique) from `[input_cancel_list]` due to bugs in spec
+        // Remove matching pointerUp (must be unique) from `[input_cancel_list]` due to bugs in spec
         // See https://github.com/w3c/webdriver/issues/1905 &&
         // https://github.com/servo/servo/issues/37579#issuecomment-2990762713
         let input_cancel_list = &mut self.session_mut().unwrap().input_cancel_list;
@@ -406,11 +417,23 @@ impl Handler {
         }
 
         // Step 7. Perform implementation-specific action dispatch steps
-        self.send_blocking_input_event_to_embedder(InputEvent::MouseButton(MouseButtonEvent::new(
-            MouseButtonAction::Up,
-            action.button.into(),
-            DevicePoint::new(x as f32, y as f32),
-        )));
+        let input_event = match subtype {
+            PointerType::Mouse => {
+                InputEvent::MouseButton(MouseButtonEvent::new(
+                    MouseButtonAction::Up,
+                    action.button.into(),
+                    DevicePoint::new(x as f32, y as f32),
+                ))
+            },
+            PointerType::Pen | PointerType::Touch => {
+                InputEvent::Touch(TouchEvent::new(
+                    TouchEventType::Up,
+                    TouchId(pointer_id as i32),
+                    DevicePoint::new(x as f32, y as f32),
+                ))
+            },
+        };
+        self.send_blocking_input_event_to_embedder(input_event);
 
         // Step 8. Return success with data null.
     }
@@ -515,20 +538,30 @@ impl Handler {
                 )
             };
 
+            let pointer_input_state = self.get_pointer_input_state(source_id);
+
             // Step 5 - 6: Let current x/y equal the x/y property of input state.
-            let (current_x, current_y) = {
-                let pointer_input_state = self.get_pointer_input_state(source_id);
-                (pointer_input_state.x, pointer_input_state.y)
-            };
+            let (current_x, current_y) = (pointer_input_state.x, pointer_input_state.y);
 
             // Step 7. If x != current x or y != current y, run the following steps:
             // FIXME: Actually "last" should not be checked here based on spec.
             if x != current_x || y != current_y || last {
                 // Step 7.1. Let buttons be equal to input state's buttons property.
                 // Step 7.2. Perform implementation-specific action dispatch steps
-                let input_event = InputEvent::MouseMove(MouseMoveEvent::new(DevicePoint::new(
-                    x as f32, y as f32,
-                )));
+                let input_event = match pointer_input_state.subtype {
+                    PointerType::Mouse => {
+                        InputEvent::MouseMove(MouseMoveEvent::new(DevicePoint::new(
+                            x as f32, y as f32,
+                        )))
+                    },
+                    PointerType::Pen | PointerType::Touch => {
+                        InputEvent::Touch(TouchEvent::new(
+                            TouchEventType::Move,
+                            TouchId(pointer_input_state.pointer_id as i32),
+                            DevicePoint::new(x as f32, y as f32),
+                        ))
+                    },
+                };
                 if last {
                     self.send_blocking_input_event_to_embedder(input_event);
                 } else {
@@ -547,7 +580,7 @@ impl Handler {
             }
 
             // Step 9. Run the following substeps in parallel:
-            // Step 9.1. Asynchronously wait for an implementationdefined amount of time to pass
+            // Step 9.1. Asynchronously wait for an implementation defined amount of time to pass
             thread::sleep(Duration::from_millis(POINTERMOVE_INTERVAL));
 
             // Step 9.2. Perform a pointer move with arguments
@@ -866,14 +899,14 @@ impl Handler {
                 key_actions.into_iter().map(ActionItem::Key).collect()
             },
             ActionsType::Pointer {
-                parameters: _,
+                parameters: pointer_parameters,
                 actions: pointer_actions,
             } => {
                 let pointer_ids = self.session().unwrap().pointer_ids();
                 self.input_state_table_mut()
                     .entry(id)
                     .or_insert(InputSourceState::Pointer(PointerInputState::new(
-                        PointerType::Mouse,
+                        pointer_parameters.pointer_type,
                         pointer_ids,
                     )));
                 pointer_actions
