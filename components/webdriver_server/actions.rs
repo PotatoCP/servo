@@ -379,6 +379,7 @@ impl Handler {
                 ))
             },
             PointerType::Pen | PointerType::Touch => {
+                // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                 InputEvent::Touch(TouchEvent::new(
                     TouchEventType::Down,
                     TouchId(pointer_id as i32),
@@ -426,6 +427,7 @@ impl Handler {
                 ))
             },
             PointerType::Pen | PointerType::Touch => {
+                // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                 InputEvent::Touch(TouchEvent::new(
                     TouchEventType::Up,
                     TouchId(pointer_id as i32),
@@ -555,6 +557,7 @@ impl Handler {
                         )))
                     },
                     PointerType::Pen | PointerType::Touch => {
+                        // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                         InputEvent::Touch(TouchEvent::new(
                             TouchEventType::Move,
                             TouchId(pointer_input_state.pointer_id as i32),
