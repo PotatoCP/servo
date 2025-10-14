@@ -9,9 +9,9 @@ use std::time::{Duration, Instant};
 use base::id::BrowsingContextId;
 use crossbeam_channel::Select;
 use embedder_traits::{
-    InputEvent, KeyboardEvent, MouseButtonAction, MouseButtonEvent, MouseMoveEvent,
-    WebDriverCommandMsg, WebDriverScriptCommand, WheelDelta, WheelEvent, WheelMode,
-    TouchEvent, TouchEventType, TouchId,
+    InputEvent, KeyboardEvent, MouseButtonAction, MouseButtonEvent, MouseMoveEvent, TouchEvent,
+    TouchEventType, TouchId, WebDriverCommandMsg, WebDriverScriptCommand, WheelDelta, WheelEvent,
+    WheelMode,
 };
 use ipc_channel::ipc;
 use keyboard_types::webdriver::KeyInputState;
@@ -364,20 +364,24 @@ impl Handler {
             return;
         }
 
-        let PointerInputState { pointer_id, subtype, x, y, .. } = *pointer_input_state;
+        let PointerInputState {
+            pointer_id,
+            subtype,
+            x,
+            y,
+            ..
+        } = *pointer_input_state;
         // Step 6. Add button to the set corresponding to source's pressed property
         pointer_input_state.pressed.insert(action.button);
         // Step 7 - 15: Variable namings already done.
 
         // Step 16. Perform implementation-specific action dispatch steps
         let input_event = match subtype {
-            PointerType::Mouse => {
-                InputEvent::MouseButton(MouseButtonEvent::new(
-                    MouseButtonAction::Down,
-                    action.button.into(),
-                    DevicePoint::new(x as f32, y as f32),
-                ))
-            },
+            PointerType::Mouse => InputEvent::MouseButton(MouseButtonEvent::new(
+                MouseButtonAction::Down,
+                action.button.into(),
+                DevicePoint::new(x as f32, y as f32),
+            )),
             PointerType::Pen | PointerType::Touch => {
                 // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                 InputEvent::Touch(TouchEvent::new(
@@ -401,7 +405,13 @@ impl Handler {
 
         // Step 6. Remove button from the set corresponding to source's pressed property,
         pointer_input_state.pressed.remove(&action.button);
-        let PointerInputState { subtype, pointer_id, x, y, .. } = *pointer_input_state;
+        let PointerInputState {
+            subtype,
+            pointer_id,
+            x,
+            y,
+            ..
+        } = *pointer_input_state;
 
         // Remove matching pointerUp (must be unique) from `[input_cancel_list]` due to bugs in spec
         // See https://github.com/w3c/webdriver/issues/1905 &&
@@ -419,13 +429,11 @@ impl Handler {
 
         // Step 7. Perform implementation-specific action dispatch steps
         let input_event = match subtype {
-            PointerType::Mouse => {
-                InputEvent::MouseButton(MouseButtonEvent::new(
-                    MouseButtonAction::Up,
-                    action.button.into(),
-                    DevicePoint::new(x as f32, y as f32),
-                ))
-            },
+            PointerType::Mouse => InputEvent::MouseButton(MouseButtonEvent::new(
+                MouseButtonAction::Up,
+                action.button.into(),
+                DevicePoint::new(x as f32, y as f32),
+            )),
             PointerType::Pen | PointerType::Touch => {
                 // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                 InputEvent::Touch(TouchEvent::new(
@@ -551,11 +559,9 @@ impl Handler {
                 // Step 7.1. Let buttons be equal to input state's buttons property.
                 // Step 7.2. Perform implementation-specific action dispatch steps
                 let input_event = match pointer_input_state.subtype {
-                    PointerType::Mouse => {
-                        InputEvent::MouseMove(MouseMoveEvent::new(DevicePoint::new(
-                            x as f32, y as f32,
-                        )))
-                    },
+                    PointerType::Mouse => InputEvent::MouseMove(MouseMoveEvent::new(
+                        DevicePoint::new(x as f32, y as f32),
+                    )),
                     PointerType::Pen | PointerType::Touch => {
                         // TODO: We still omit many properties such as preassure, tilt, twist, etc for Touch Event.
                         InputEvent::Touch(TouchEvent::new(
